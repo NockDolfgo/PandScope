@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pandscope — Ontwikkelpotentie</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,300&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f6f2;--surface:#fff;--surface2:#f2f1ed;
+  --border:#dddbd4;--border2:#c8c5bc;
+  --text:#1a1916;--text2:#4a4840;--text3:#8a8778;
+  --accent:#1a4a7a;--accent-light:#e8f0f8;
+  --green:#1a6640;--green-bg:#e8f5ee;--green-border:#b8dfc8;
+  --red:#8a1a1a;--red-bg:#faeaea;--red-border:#ddb8b8;
+  --orange:#7a4a10;--orange-bg:#fef3e2;--orange-border:#e8d0a0;
+  --radius:4px;--shadow:0 1px 4px rgba(0,0,0,.08),0 0 0 1px rgba(0,0,0,.04);
+}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:13px;min-height:100vh;line-height:1.5}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:48px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200}
+.logo{font-family:'Source Serif 4',serif;font-size:17px;font-weight:600;color:var(--accent)}
+.logo em{font-style:italic;font-weight:300;color:var(--text3)}
+.hdr-r{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text3)}
+.beta{background:var(--accent-light);color:var(--accent);border:1px solid #c0d4e8;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:500}
+.wrap{display:grid;grid-template-columns:360px 1fr;min-height:calc(100vh - 48px)}
+.left{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;max-height:calc(100vh - 48px)}
+.right{display:flex;flex-direction:column;overflow-y:auto;max-height:calc(100vh - 48px)}
+.mapwrap{height:220px;min-height:220px;flex-shrink:0;background:var(--surface2)}
+#map{width:100%;height:100%;display:none}
+.mph{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--text3)}
+.mph svg{opacity:.25}.mph p{font-size:12px}
+.rw{flex:1;padding:14px;display:flex;flex-direction:column;gap:12px}
+.rw.hidden{display:none}
+.slbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:7px}
+
+/* kaarten */
+.crow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.dc{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--surface)}
+.dct{padding:9px 10px 7px}
+.dcir{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.dci{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:5px}
+.io{background:#e8f0f8}.ia{background:#e8f5ee}.is{background:#fef3e2}
+.vb{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.v-yes{background:var(--green-bg);border:1.5px solid var(--green-border);color:var(--green)}
+.v-no{background:var(--red-bg);border:1.5px solid var(--red-border);color:var(--red)}
+.v-maybe{background:var(--orange-bg);border:1.5px solid var(--orange-border);color:var(--orange)}
+.v-unk{background:var(--bg);border:1.5px solid var(--border2);color:var(--text3)}
+.dck{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:2px}
+.dcv{font-size:11px;font-weight:600;color:var(--text);line-height:1.3;min-height:26px}
+.dcb{padding:6px 10px 8px;border-top:1px solid var(--border);background:var(--surface2)}
+.cn{display:flex;justify-content:space-between;font-size:10px;padding:1px 0}
+.cnk{color:var(--text3)}.cnv{color:var(--text);font-weight:500}
+.cnv.pos{color:var(--green)}.cnv.neg{color:var(--red)}
+
+/* AI */
+.airow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.aic{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px}
+.ait{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:5px}
+.aib{font-size:11px;color:var(--text2);line-height:1.65}
+.aib .unk{color:var(--text3);font-style:italic}
+
+/* datapanelen */
+.drow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dp{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:11px}
+.dpt{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:7px;display:flex;align-items:center;gap:4px}
+.kvt{width:100%;border-collapse:collapse}
+.kvt tr{border-bottom:1px solid var(--border)}
+.kvt tr:last-child{border-bottom:none}
+.kvt td{padding:4px 0;vertical-align:top;font-size:11px}
+.kvt td:first-child{color:var(--text3);width:52%;padding-right:5px}
+.kvt td:last-child{color:var(--text);font-weight:500;text-align:right}
+.bptag{display:inline-flex;padding:2px 5px;border-radius:3px;font-size:10px;font-weight:500}
+.bp-w{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.bp-g{background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border)}
+.bp-u{background:var(--bg);color:var(--text3);border:1px solid var(--border)}
+.snote{padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);font-size:10px;color:var(--text3);line-height:1.6}
+.snote strong{color:var(--text2)}
+
+/* linker paneel */
+.ss{padding:14px;border-bottom:1px solid var(--border)}
+.sw{position:relative}
+#inp{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Inter',sans-serif;font-size:14px;padding:9px 34px 9px 11px;outline:none;transition:border-color .15s,box-shadow .15s}
+#inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(26,74,122,.1);background:var(--surface)}
+#inp::placeholder{color:var(--text3)}
+.sic{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none}
+#sug{position:absolute;top:calc(100% + 3px);left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);z-index:300;overflow:hidden;display:none;box-shadow:var(--shadow)}
+#sug.open{display:block}
+.si{padding:7px 11px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:background .08s}
+.si:last-child{border-bottom:none}
+.si:hover,.si.act{background:var(--accent-light)}
+.sm{font-size:12px;color:var(--text);font-weight:500}
+.sx{font-size:10px;color:var(--text3);margin-left:auto;white-space:nowrap}
+.lgsec{padding:10px 14px;border-bottom:1px solid var(--border);display:none}
+.lgt{font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.lgb{font-size:10px;font-family:'SF Mono','Fira Mono',monospace;color:var(--text2);line-height:1.9;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:7px 9px;max-height:220px;overflow-y:auto}
+.ll{display:flex;gap:6px;opacity:0;transform:translateY(2px);animation:lf .18s forwards}
+@keyframes lf{to{opacity:1;transform:none}}
+.lt{color:var(--text3);min-width:46px;font-size:9px}
+.ok{color:var(--green)}.sp{color:var(--orange);animation:bl .7s step-end infinite}.er{color:var(--red)}.ac{color:var(--accent)}
+@keyframes bl{50%{opacity:0}}
+.pi{padding:10px 14px;border-bottom:1px solid var(--border);display:none;flex-direction:column;gap:3px}
+.pia{font-family:'Source Serif 4',serif;font-size:13px;font-weight:600;color:var(--text)}
+.pis{font-size:10px;color:var(--text3)}
+.rb{padding:10px 14px;border-top:1px solid var(--border);margin-top:auto;display:none}
+.rbb{background:none;border:1px solid var(--border2);border-radius:var(--radius);color:var(--text3);font-family:'Inter',sans-serif;font-size:11px;padding:6px 12px;cursor:pointer;width:100%;transition:border-color .15s,color .15s}
+.rbb:hover{border-color:var(--accent);color:var(--accent)}
+
+@media(max-width:900px){
+  .wrap{grid-template-columns:1fr}
+  .left{max-height:none;border-right:none;border-bottom:1px solid var(--border)}
+  .right{max-height:none}
+  .crow,.airow,.drow{grid-template-columns:1fr}
+  .mapwrap{height:180px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Pand<em>scope</em></div>
+  <div class="hdr-r"><span class="beta">BETA</span><span>Ontwikkelpotentie analyse</span></div>
+</header>
+
+<div class="wrap">
+  <!-- Links -->
+  <div class="left">
+    <div class="ss">
+      <label class="slbl" style="display:block;margin-bottom:6px" for="inp">Adres opzoeken</label>
+      <div class="sw">
+        <input type="text" id="inp" placeholder="bijv. Coolhaven 240, Rotterdam" autocomplete="off"/>
+        <svg class="sic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <div id="sug"></div>
+      </div>
+    </div>
+    <div class="pi" id="pi">
+      <div class="pia" id="pia">—</div>
+      <div class="pis" id="pis"></div>
+    </div>
+    <div class="lgsec" id="lgsec">
+      <div class="lgt">Data ophalen</div>
+      <div class="lgb" id="lgb"></div>
+    </div>
+    <div class="rb" id="rb">
+      <button class="rbb" onclick="rst()">← Nieuw adres</button>
+    </div>
+  </div>
+
+  <!-- Rechts -->
+  <div class="right">
+    <div class="mapwrap">
+      <div class="mph" id="mph">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <p>Voer een adres in</p>
+      </div>
+      <div id="map"></div>
+    </div>
+
+    <div class="rw hidden" id="rw">
+      <div>
+        <div class="slbl">Ontwikkelpotentie</div>
+        <div class="crow" id="crow"></div>
+        <div class="snote" id="snote" style="display:none;margin-top:7px"></div>
+      </div>
+      <div>
+        <div class="slbl">AI toelichting</div>
+        <div class="airow" id="airow">
+          <div class="aic"><div class="ait">Optoppen</div><div class="aib"><span class="unk">—</span></div></div>
+          <div class="aic"><div class="ait">Aanbouwen</div><div class="aib"><span class="unk">—</span></div></div>
+          <div class="aic"><div class="ait">Splitsen</div><div class="aib"><span class="unk">—</span></div></div>
+        </div>
+      </div>
+      <div class="drow">
+        <div class="dp">
+          <div class="dpt"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>BAG gebouwdata</div>
+          <table class="kvt" id="bagT"></table>
+        </div>
+        <div class="dp">
+          <div class="dpt"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Bestemmingsplan + perceel</div>
+          <table class="kvt" id="bpT"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Gemeentecodes — voor validatie VBO-ID ──
+// De eerste 4 cijfers van een VBO-ID zijn altijd de gemeentecode.
+// Als die niet matcht met het opgezochte adres, heeft PDOK een verkeerd pand teruggegeven.
+const GEMEENTE_CODES = {
+  'amsterdam':'0363','rotterdam':'0599','den haag':'0518','\'s-gravenhage':'0518',
+  'utrecht':'0344','eindhoven':'0772','groningen':'0014','tilburg':'0855',
+  'almere':'0034','breda':'0758','nijmegen':'0268','arnhem':'0202',
+  'haarlem':'0392','enschede':'0153','apeldoorn':'0200','leiden':'0546',
+  'dordrecht':'0505','haarlemmermeer':'0394','zoetermeer':'0637','zwolle':'0193',
+  'maastricht':'0935','westland':'1783','delft':'0503','emmen':'0114',
+  'amersfoort':'0307','venlo':'0983','deventer':'0150','alkmaar':'0361',
+  'leeuwarden':'0080','zaanstad':'0479','ede':'0228','s-hertogenbosch':'0796',
+  '\'s-hertogenbosch':'0796','hertogenbosch':'0796','helmond':'0794',
+  'purmerend':'0439','sittard-geleen':'1883','roosendaal':'1674',
+  'nissewaard':'1842','landsmeer':'0415',
+};
+
+function getGemeenteCode(naam) {
+  if (!naam) return null;
+  const n = naam.toLowerCase();
+  for (const [k, v] of Object.entries(GEMEENTE_CODES)) {
+    if (n.includes(k)) return v;
+  }
+  return null;
+}
+
+// ── Splitsingsregels per gemeente ──
+const RULES = {
+  amsterdam:  {n:40,p:100,c:.10,b:'Amsterdam 2024 — min. 40 m²/unit, pand ≥ 100 m²'},
+  rotterdam:  {n:50,p:0,  c:.12,b:'Rotterdam 2025 — min. 50 m²/unit'},
+  'den haag': {n:35,p:0,  c:.10,b:'Den Haag 2024 — min. 35 m²/unit'},
+  utrecht:    {n:50,p:140,c:.12,b:'Utrecht — min. 50 m²/unit, pand ≥ 140 m²'},
+  arnhem:     {n:40,p:120,c:.10,b:'Arnhem — min. 40 m²/unit, pand ≥ 120 m²'},
+  eindhoven:  {n:40,p:0,  c:.10,b:'Eindhoven 2026 — min. 40 m²/unit'},
+  groningen:  {n:40,p:0,  c:.10,b:'Groningen — min. 40 m²/unit'},
+  haarlem:    {n:50,p:0,  c:.12,b:'Haarlem — min. 50 m²/unit'},
+  nijmegen:   {n:40,p:0,  c:.10,b:'Nijmegen — min. 40 m²/unit'},
+  default:    {n:40,p:0,  c:.12,b:'Landelijk minimum (Omgevingswet) — min. 40 m²/unit'},
+};
+function getRule(g) {
+  if (!g) return RULES.default;
+  const gl = g.toLowerCase();
+  for (const k of Object.keys(RULES)) if (gl.includes(k)) return RULES[k];
+  return RULES.default;
+}
+
+// ── State ──
+let mapObj=null, mapMarker=null, ctx=null, aidx=-1, sugs=[], dbt;
+const inp = document.getElementById('inp');
+const sugEl = document.getElementById('sug');
+
+// ── Kaart ──
+function initMap(lat, lng, lbl) {
+  document.getElementById('mph').style.display = 'none';
+  const m = document.getElementById('map');
+  m.style.display = 'block';
+  if (!mapObj) {
+    mapObj = L.map('map',{zoomControl:true,scrollWheelZoom:false}).setView([lat,lng],17);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      {attribution:'© OpenStreetMap © CartoDB',subdomains:'abcd',maxZoom:20}).addTo(mapObj);
+  } else { mapObj.setView([lat,lng],17); }
+  if (mapMarker) mapObj.removeLayer(mapMarker);
+  const ic = L.divIcon({className:'',
+    html:`<div style="width:12px;height:12px;background:#1a4a7a;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.4)"></div>`,
+    iconSize:[12,12],iconAnchor:[6,6]});
+  mapMarker = L.marker([lat,lng],{icon:ic}).addTo(mapObj);
+  mapMarker.bindPopup(`<span style="font-size:12px;font-weight:500">${lbl}</span>`).openPopup();
+  setTimeout(()=>mapObj.invalidateSize(),150);
+}
+
+function parsell(s) {
+  if (!s) return null;
+  try { const p=s.replace('POINT(','').replace(')','').split(' '); return {lng:+p[0],lat:+p[1]}; }
+  catch(e){return null;}
+}
+function parserd(s) {
+  if (!s) return null;
+  try { const p=s.replace('POINT(','').replace(')','').split(' '); return {x:+p[0],y:+p[1]}; }
+  catch(e){return null;}
+}
+
+// ── Autocomplete — via /api/pdok (Edge Function) ──
+inp.addEventListener('input',()=>{
+  clearTimeout(dbt);
+  const q=inp.value.trim();
+  if(q.length<3){closeSug();return;}
+  dbt=setTimeout(()=>fetchSug(q),260);
+});
+inp.addEventListener('keydown',e=>{
+  const items=sugEl.querySelectorAll('.si');
+  if(e.key==='ArrowDown'){aidx=Math.min(aidx+1,items.length-1);hl(items);e.preventDefault();}
+  else if(e.key==='ArrowUp'){aidx=Math.max(aidx-1,0);hl(items);e.preventDefault();}
+  else if(e.key==='Enter'){const s=sugs[aidx>=0?aidx:0];if(s){sel(s);e.preventDefault();}}
+  else if(e.key==='Escape')closeSug();
+});
+document.addEventListener('click',e=>{if(!e.target.closest('.sw'))closeSug();});
+function hl(items){items.forEach((el,i)=>el.classList.toggle('act',i===aidx));}
+
+async function fetchSug(q) {
+  try {
+    const r = await fetch(`/api/pdok?actie=suggest&q=${encodeURIComponent(q)}`);
+    sugs = (await r.json())?.response?.docs || [];
+    renderSug(sugs);
+  } catch(e){closeSug();}
+}
+function renderSug(docs) {
+  aidx=-1;
+  if(!docs.length){closeSug();return;}
+  sugEl.innerHTML=docs.map((d,i)=>{
+    const p=d.weergavenaam.split(',');
+    return `<div class="si" data-i="${i}"><span style="color:var(--text3);font-size:11px">⌖</span><span class="sm">${p[0].trim()}</span><span class="sx">${p.slice(1).join(',').trim()}</span></div>`;
+  }).join('');
+  sugEl.classList.add('open');
+  sugEl.querySelectorAll('.si').forEach((el,i)=>el.addEventListener('click',()=>sel(docs[i])));
+}
+function closeSug(){sugEl.classList.remove('open');sugEl.innerHTML='';}
+function sel(doc){inp.value=doc.weergavenaam;closeSug();start(doc);}
+
+// ── Pipeline starten ──
+function start(doc) {
+  document.getElementById('lgsec').style.display='block';
+  document.getElementById('lgb').innerHTML='';
+  document.getElementById('rw').classList.add('hidden');
+  document.getElementById('rb').style.display='none';
+  const pi=document.getElementById('pi');
+  pi.style.display='flex';
+  const pts=doc.weergavenaam.split(',');
+  document.getElementById('pia').textContent=pts[0].trim();
+  document.getElementById('pis').textContent=pts.slice(1).join(',').trim();
+  ctx=null;
+  const ll=parsell(doc.centroide_ll);
+  if(ll) initMap(ll.lat,ll.lng,pts[0].trim());
+  run(doc);
+}
+
+// ── Hoofd pipeline ──
+async function run(doc) {
+  log('▶','sp','Adres gevonden: '+doc.weergavenaam);
+
+  // ── 1. BAG lookup via /api/pdok ──
+  log('▶','sp','BAG gebouwdata ophalen…');
+  let lu = null;
+  try {
+    const r = await fetch(`/api/pdok?actie=lookup&id=${encodeURIComponent(doc.id)}`);
+    lu = (await r.json())?.response?.docs?.[0] || null;
+  } catch(e){}
+
+  const opp       = lu?.oppervlakte ?? null;
+  const bouwjaar  = lu?.bouwjaar ?? null;
+  const gebruik   = lu?.gebruiksdoel ?? null;
+  const vboId     = lu?.adresseerbaarobject_id ?? null;
+  const rdStr     = lu?.centroide_rd ?? null;
+  const percelen  = lu?.gekoppeld_perceel ?? [];
+  const gemeente  = lu?.gemeentenaam ?? '';
+  const pdokGemCode = lu?.gemeentecode ?? null; // bv. "0599"
+
+  // ── Gemeentecode validatie ──
+  // Als de eerste 4 cijfers van het VBO-ID niet overeenkomen met de gemeentecode
+  // uit PDOK, dan heeft PDOK een verkeerd adres teruggegeven. Stop de analyse.
+  const vboPrefix = vboId?.substring(0,4);
+  if (vboId && pdokGemCode && vboPrefix !== pdokGemCode) {
+    log('!','er',`⚠ VBO-ID begint met ${vboPrefix} maar gemeente is ${pdokGemCode}. Probeer het adres specifieker in te voeren (bijv. met postcode).`);
+    document.getElementById('rb').style.display='block';
+    return;
+  }
+
+  log(lu?'✓':'!', lu?'ok':'er',
+    lu ? `BAG: GBO ${opp??'?'} m², bouwjaar ${bouwjaar??'?'}, VBO ${vboId??'?'}` : 'BAG lookup mislukt');
+
+  const rd = parserd(rdStr);
+
+  // ── 2. AHN hoogte via /api/ahn ──
+  log('▶','sp','AHN4 gebouwhoogte ophalen (DSM + DTM)…');
+  let dsm=null, dtm=null, gebH=null;
+  if (rd) {
+    try {
+      const r = await fetch(`/api/ahn?x=${rd.x}&y=${rd.y}`);
+      const d = await r.json();
+      dsm  = d.dsm;
+      dtm  = d.dtm;
+      gebH = d.gebouwHoogte;
+    } catch(e){}
+  }
+  log(gebH!=null?'✓':'?', gebH!=null?'ok':'sp',
+    gebH!=null
+      ? `AHN4: daknok ${dsm?.toFixed(1)} m NAP, maaiveld ${dtm?.toFixed(2)??'?'} m NAP → gebouwhoogte ${gebH.toFixed(1)} m`
+      : dsm!=null ? `AHN4: daknok ${dsm.toFixed(1)} m NAP (maaiveld niet beschikbaar)`
+      : 'AHN4 hoogte niet beschikbaar');
+
+  // ── 3. Perceel via /api/pdok ──
+  log('▶','sp','Kadastrale perceeldata ophalen…');
+  let perceelOpp=null;
+  if (percelen.length > 0) {
+    try {
+      // perceel format: "RTD04-C-1234"
+      const parts = percelen[0].split('-');
+      if (parts.length === 3) {
+        const r = await fetch(`/api/pdok?actie=perceel&gemeentecode=${parts[0]}&sectie=${parts[1]}&nummer=${parts[2]}`);
+        const d = await r.json();
+        const feat = d?.features?.[0];
+        perceelOpp = feat?.properties?.kadastraleGrootte ?? feat?.properties?.kadastralegrootte ?? null;
+      }
+    } catch(e){}
+  }
+  // Fallback op coördinaten als perceel niet gevonden
+  if (perceelOpp === null && rd) {
+    try {
+      const r = await fetch(`/api/pdok?actie=perceel&x=${rd.x}&y=${rd.y}`);
+      const d = await r.json();
+      if (d?.features?.length > 0) {
+        const feat = d.features.sort((a,b)=>(b.properties?.kadastraleGrootte||0)-(a.properties?.kadastraleGrootte||0))[0];
+        perceelOpp = feat?.properties?.kadastraleGrootte ?? feat?.properties?.kadastralegrootte ?? null;
+      }
+    } catch(e){}
+  }
+  log(perceelOpp!=null?'✓':'?', perceelOpp!=null?'ok':'sp',
+    perceelOpp!=null ? `Perceel: ${perceelOpp} m²` : 'Perceeloppervlak niet gevonden');
+
+  // ── 4. WOZ via /api/pdok ──
+  log('▶','sp','WOZ waarde ophalen…');
+  let woz=null;
+  if (vboId) {
+    try {
+      const r = await fetch(`/api/pdok?actie=woz&vboId=${vboId}`);
+      const d = await r.json();
+      woz = d?.features?.[0]?.properties?.vastgesteldeWaarde ?? null;
+    } catch(e){}
+  }
+  log(woz!=null?'✓':'?', woz!=null?'ok':'sp',
+    woz!=null ? `WOZ: €${(+woz).toLocaleString('nl-NL')}` : 'WOZ niet beschikbaar');
+
+  // ── 5. Bestemmingsplan via /api/rp ──
+  log('▶','sp','Bestemmingsplan ophalen (Ruimtelijkeplannen v4)…');
+  let maxH=null, bpFunctie=null, bpPlan=null;
+  if (rd) {
+    try {
+      const r = await fetch(`/api/rp?x=${rd.x}&y=${rd.y}`);
+      if (r.ok) {
+        const d = await r.json();
+        maxH      = d.maxBouwhoogte ?? null;
+        bpFunctie = d.bpFunctie ?? null;
+        bpPlan    = d.planNaam ?? null;
+      }
+    } catch(e){}
+  }
+  log(maxH!=null?'✓':bpPlan?'?':'?', maxH!=null?'ok':'sp',
+    maxH!=null  ? `Max. bouwhoogte: ${maxH} m — ${bpFunctie??bpPlan??''}` :
+    bpPlan      ? `Plan: ${bpPlan.substring(0,35)} — bouwhoogte niet gevonden` :
+                  'Bestemmingsplan niet gevonden');
+
+  log('✦','ac','Claude analyseert pand…');
+  await w(100);
+
+  // ── Context ──
+  const rule = getRule(gemeente);
+  ctx = { doc, gemeente, rule, opp, bouwjaar, gebruik, vboId,
+          dsm, dtm, gebH, perceelOpp, woz, maxH, bpFunctie, bpPlan };
+  toonResultaten(ctx);
+}
+
+// ── Resultaten tonen ──
+function toonResultaten(c) {
+  const { opp, bouwjaar, gebruik, dsm, dtm, gebH, perceelOpp, woz, maxH, bpFunctie, bpPlan, gemeente, rule } = c;
+  const achtererf = (perceelOpp!=null && opp!=null) ? Math.max(0, perceelOpp-opp) : null;
+
+  // BAG tabel
+  document.getElementById('bagT').innerHTML = [
+    ['Bouwjaar',              bouwjaar??'?'],
+    ['GBO (BAG)',             opp!=null?`${opp} m²`:'?'],
+    ['Gebruiksdoel',          gebruik??'?'],
+    ['Daknok (AHN4 DSM)',     dsm!=null?`${dsm.toFixed(1)} m NAP`:'?'],
+    ['Maaiveld (AHN4 DTM)',   dtm!=null?`${dtm.toFixed(2)} m NAP`:'?'],
+    ['Gebouwhoogte',          gebH!=null?`${gebH.toFixed(1)} m`:'?'],
+    ['WOZ waarde',            woz!=null?`€ ${(+woz).toLocaleString('nl-NL')}`:'?'],
+    ['Perceeloppervlak (BRK)',perceelOpp!=null?`${perceelOpp} m²`:'?'],
+  ].map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+
+  // BP tabel
+  const bpCls = bpFunctie
+    ? (/(wonen|woon)/i.test(bpFunctie)?'bp-w':/(gemengd|centrum|bedrijf)/i.test(bpFunctie)?'bp-g':'bp-u')
+    : 'bp-u';
+  const bebPct = (opp&&perceelOpp) ? Math.round(opp/perceelOpp*100)+'%' : '?';
+
+  document.getElementById('bpT').innerHTML = [
+    ['Bestemmingsplan',    bpPlan?`<span style="font-size:10px">${bpPlan.substring(0,28)}…</span>`:'?'],
+    ['Functie',            bpFunctie?`<span class="bptag ${bpCls}">${bpFunctie.substring(0,22)}</span>`:'?'],
+    ['Max. bouwhoogte',    maxH!=null?`${maxH} m`:'?'],
+    ['Bebouwingsgraad',    bebPct],
+    ['Achtererf (schat.)', achtererf!=null?`± ${Math.round(achtererf)} m²`:'?'],
+  ].map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+
+  // Kaarten
+  renderKaarten(c, gebH, achtererf);
+
+  document.getElementById('rw').classList.remove('hidden');
+  document.getElementById('rb').style.display='block';
+  runAI(c, gebH, achtererf);
+}
+
+function renderKaarten(c, gebH, achtererf) {
+  const { opp, maxH, rule } = c;
+
+  // OPTOPPEN
+  let ov, oc, on;
+  const hv = (gebH!=null&&maxH!=null) ? +(maxH-gebH).toFixed(1) : null;
+  if (gebH==null&&maxH==null) { ov='Onvoldoende data'; oc='v-unk'; on=[['Daknok','?'],['Max. hoogte BP','?'],['Vrije ruimte','?']]; }
+  else if (gebH==null)        { ov='Gebouwhoogte ontbreekt'; oc='v-unk'; on=[['Daknok','?'],['Max. BP',maxH?`${maxH} m`:'?'],['Vrije ruimte','?']]; }
+  else if (maxH==null)        { ov='Max. hoogte BP onbekend'; oc='v-unk'; on=[['Daknok',`${gebH.toFixed(1)} m`],['Max. BP','?'],['Vrije ruimte','?']]; }
+  else if (hv>=2.5)           { ov=`${hv} m vrij — mogelijk`; oc='v-yes'; on=[['Daknok',`${gebH.toFixed(1)} m`],['Max. BP',`${maxH} m`],['Vrije ruimte',`${hv} m ✓`]]; }
+  else if (hv>=0)             { ov=`Beperkte marge (${hv} m)`; oc='v-maybe'; on=[['Daknok',`${gebH.toFixed(1)} m`],['Max. BP',`${maxH} m`],['Vrije ruimte',`${hv} m`]]; }
+  else                        { ov='Niet mogelijk'; oc='v-no'; on=[['Daknok',`${gebH.toFixed(1)} m`],['Max. BP',`${maxH} m`],['Overschrijding',`${Math.abs(hv).toFixed(1)} m`]]; }
+
+  // AANBOUWEN
+  let av, ac, an;
+  if (achtererf==null) { av='Perceeldata ontbreekt'; ac='v-unk'; an=[['Achtererf','?'],['Max. bijgebouw','3 m std.'],['Hoogte pand',gebH?`${gebH.toFixed(1)} m`:'?']]; }
+  else if (achtererf<5) { av='Weinig achtererf'; ac='v-no'; an=[['Achtererf',`±${Math.round(achtererf)} m²`],['Min. aanbouw','5 m²'],['Status','Beperkt']]; }
+  else {
+    const g = achtererf>=20?'Goede mogelijkheid':'Beperkte mogelijkheid';
+    av=`${g} (±${Math.round(achtererf)} m²)`; ac=achtererf>=20?'v-yes':'v-maybe';
+    an=[['Achtererf',`±${Math.round(achtererf)} m²`],['Max. bijgebouw',maxH?`${maxH} m`:'3 m std.'],['Pand hoogte',gebH?`${gebH.toFixed(1)} m`:'?']];
+  }
+
+  // SPLITSEN
+  let sv, sc, sn;
+  if (opp==null) { sv='GBO onbekend in BAG'; sc='v-unk'; sn=[['GBO','?'],['Min. per unit',`${rule.n} m²`],['Min. pand',rule.p?`${rule.p} m²`:'geen eis']]; }
+  else {
+    const net=Math.round(opp*(1-rule.c)), maxU=Math.floor(net/rule.n), ext=maxU-1;
+    const ok=rule.p===0||opp>=rule.p;
+    if (!ok)   { sv=`Pand te klein (<${rule.p} m²)`; sc='v-no'; }
+    else if (ext<=0) { sv='Niet mogelijk — te weinig m²'; sc='v-no'; }
+    else if (ext===1){ sv='1 extra unit mogelijk'; sc='v-yes'; }
+    else        { sv=`${ext} extra units mogelijk`; sc='v-yes'; }
+    sn=[['GBO',`${opp} m²`],['Na corridoraftrek',`${net} m²`],['Min. per unit',`${rule.n} m²`],['Max. units',ok?maxU:'n.v.t.']];
+  }
+
+  const vi = c => c==='v-yes'?'✓':c==='v-no'?'✗':'?';
+  const cards = [
+    {k:'Optoppen', i:'io', v:ov, c:oc, n:on,
+     s:`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>`},
+    {k:'Aanbouwen',i:'ia', v:av, c:ac, n:an,
+     s:`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="7" width="20" height="14" rx="1"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>`},
+    {k:'Splitsen', i:'is', v:sv, c:sc, n:sn,
+     s:`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="8" height="18" rx="1"/><rect x="14" y="3" width="8" height="18" rx="1"/></svg>`},
+  ];
+
+  document.getElementById('crow').innerHTML = cards.map(x=>`
+    <div class="dc">
+      <div class="dct">
+        <div class="dcir"><div class="dci ${x.i}">${x.s}</div><div class="vb ${x.c}">${vi(x.c)}</div></div>
+        <div class="dck">${x.k}</div>
+        <div class="dcv">${x.v}</div>
+      </div>
+      <div class="dcb">${x.n.map(([k,v])=>`<div class="cn"><span class="cnk">${k}</span><span class="cnv">${v}</span></div>`).join('')}</div>
+    </div>`).join('');
+
+  const sn2 = document.getElementById('snote');
+  sn2.style.display='block';
+  sn2.innerHTML=`<strong>Splitsing norm:</strong> ${rule.b} · Corridoraftrek ${Math.round(rule.c*100)}%`;
+}
+
+// ── AI toelichting ──
+async function runAI(c, gebH, achtererf) {
+  const airow = document.getElementById('airow');
+  airow.innerHTML = ['Optoppen','Aanbouwen','Splitsen'].map(t=>
+    `<div class="aic"><div class="ait">${t}</div><div class="aib"><span class="unk">Laden…</span></div></div>`).join('');
+
+  const {opp,bouwjaar,dtm,maxH,bpFunctie,gemeente,rule,perceelOpp} = c;
+  const net  = opp ? Math.round(opp*(1-rule.c)) : null;
+  const maxU = net ? Math.floor(net/rule.n) : null;
+  const hv   = (gebH!=null&&maxH!=null) ? +(maxH-gebH).toFixed(1) : null;
+
+  const prompt = `Je bent een Nederlandse bouwkundig ingenieur. Geef per onderdeel max 2 zinnen feitelijke toelichting. Eindig met ? als data ontbreekt.
+
+Adres: ${c.doc.weergavenaam}
+Gemeente: ${gemeente}
+Bouwjaar: ${bouwjaar??'?'}
+GBO: ${opp??'?'} m²
+Gebouwhoogte: ${gebH!=null?gebH.toFixed(1)+' m':'?'}
+Maaiveld: ${dtm!=null?dtm.toFixed(2)+' m NAP':'?'}
+Max. bouwhoogte BP: ${maxH??'?'} m
+Bestemmingsfunctie: ${bpFunctie??'?'}
+Vrije ruimte optoppen: ${hv!=null?hv.toFixed(1)+' m':'?'}
+Perceeloppervlak: ${perceelOpp??'?'} m²
+Achtererf: ${achtererf!=null?Math.round(achtererf)+' m²':'?'}
+GBO na corridoraftrek: ${net??'?'} m²
+Max. units: ${maxU??'?'}
+Splitsingsregel: ${rule.b}
+
+Antwoord ALLEEN als JSON zonder markdown:
+{"optoppen":"…","aanbouwen":"…","splitsen":"…"}`;
+
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,
+        messages:[{role:'user',content:prompt}]})
+    });
+    const d = await r.json();
+    const raw = d.content?.map(x=>x.text||'').join('')||'';
+    let p; try{p=JSON.parse(raw.replace(/```json|```/g,'').trim());}catch(e){}
+    if(p) {
+      airow.innerHTML=[{t:'Optoppen',x:p.optoppen},{t:'Aanbouwen',x:p.aanbouwen},{t:'Splitsen',x:p.splitsen}]
+        .map(({t,x})=>`<div class="aic"><div class="ait">${t}</div><div class="aib">${x||'<span class="unk">? Onvoldoende data</span>'}</div></div>`).join('');
+    } else { aiFallback(c,gebH,achtererf); }
+  } catch(e){ aiFallback(c,gebH,achtererf); }
+}
+
+function aiFallback(c,gebH,achtererf) {
+  const {opp,rule,maxH} = c;
+  const net=opp?Math.round(opp*(1-rule.c)):null;
+  const maxU=net?Math.floor(net/rule.n):null;
+  const hv=(gebH!=null&&maxH!=null)?+(maxH-gebH).toFixed(1):null;
+  document.getElementById('airow').innerHTML=[
+    {t:'Optoppen',x:gebH!=null&&maxH!=null?`Vrije hoogte: ${hv.toFixed(1)} m. ${hv>=2.5?'Optoppen lijkt planologisch haalbaar.':'Marge onvoldoende voor extra laag.'}`:`Gebouwhoogte of max. bouwhoogte BP ontbreekt. ?`},
+    {t:'Aanbouwen',x:achtererf!=null?`Achtererf ±${Math.round(achtererf)} m². ${achtererf>=20?'Ruimte voor aanbouw aanwezig.':'Beperkt; vergunningsvrij tot 15 m² mogelijk.'} Check bestemmingsplan. ?`:`Perceeldata ontbreekt. ?`},
+    {t:'Splitsen',x:opp?`GBO ${opp} m² → na aftrek ${net} m² → max. ${maxU??'?'} units van ${rule.n} m². Toetsing huisvestingsverordening ${c.gemeente} vereist.`:`GBO niet beschikbaar. ?`},
+  ].map(({t,x})=>`<div class="aic"><div class="ait">${t}</div><div class="aib">${x}</div></div>`).join('');
+}
+
+// ── Helpers ──
+function log(ic,cls,msg){
+  const ts=new Date().toTimeString().slice(0,8);
+  const el=document.createElement('div');el.className='ll';
+  el.innerHTML=`<span class="lt">${ts}</span><span class="${cls}">${ic}</span><span>${msg}</span>`;
+  const b=document.getElementById('lgb');b.appendChild(el);b.scrollTop=b.scrollHeight;
+}
+function w(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function rst(){
+  inp.value='';
+  document.getElementById('lgsec').style.display='none';
+  document.getElementById('lgb').innerHTML='';
+  document.getElementById('rw').classList.add('hidden');
+  document.getElementById('rb').style.display='none';
+  document.getElementById('pi').style.display='none';
+  document.getElementById('mph').style.display='flex';
+  document.getElementById('map').style.display='none';
+  if(mapMarker&&mapObj)mapObj.removeLayer(mapMarker);
+  ctx=null;inp.focus();
+}
+</script>
+</body>
+</html>

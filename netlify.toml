@@ -1,0 +1,14 @@
+[build]
+  publish = "."
+
+[[edge_functions]]
+  path = "/api/pdok"
+  function = "pdok"
+
+[[edge_functions]]
+  path = "/api/ahn"
+  function = "ahn"
+
+[[edge_functions]]
+  path = "/api/rp"
+  function = "rp"
