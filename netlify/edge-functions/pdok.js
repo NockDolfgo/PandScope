@@ -1,71 +1,74 @@
-// Netlify Edge Function: pdok.js
-// Proxiet alle PDOK calls zodat de browser geen CORS-problemen heeft
-// Aanroepen vanuit HTML: /api/pdok?actie=suggest&q=...
-//                        /api/pdok?actie=lookup&id=...
-//                        /api/pdok?actie=bag&vboId=...
-//                        /api/pdok?actie=perceel&gemeentecode=...&sectie=...&nummer=...
-//                        /api/pdok?actie=woz&vboId=...
+// netlify/edge-functions/pdok.js
+// Proxy voor alle PDOK calls + BRK + WOZ
+// Aanroepen vanuit HTML via /api/pdok?actie=...
 
 export default async function handler(req) {
   const url = new URL(req.url);
   const actie = url.searchParams.get('actie');
+  const dsoKey = Deno.env.get('DSO_API_KEY') || '';
 
-  // CORS headers — staan altijd in het antwoord
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
   };
 
   try {
-    let apiUrl;
+    let apiUrl, r, d;
 
+    // ── Suggest: autocomplete adres ──
     if (actie === 'suggest') {
       const q = url.searchParams.get('q') || '';
       apiUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest?q=${encodeURIComponent(q)}&fq=type:(adres)&rows=6&fl=weergavenaam,id,centroide_ll`;
+      r = await fetch(apiUrl);
+      d = await r.json();
+      return new Response(JSON.stringify(d), { headers });
 
+    // ── Lookup: volledige BAG data op adres-ID ──
     } else if (actie === 'lookup') {
       const id = url.searchParams.get('id') || '';
       apiUrl = `https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup?id=${encodeURIComponent(id)}&fl=adresseerbaarobject_id,nummeraanduiding_id,centroide_rd,centroide_ll,oppervlakte,bouwjaar,gebruiksdoel,gekoppeld_perceel,weergavenaam,gemeentenaam,gemeentecode`;
-
-    } else if (actie === 'bag') {
-      // BAG verblijfsobject → pand-ID ophalen
-      const vboId = url.searchParams.get('vboId') || '';
-      const dsoKey = Deno.env.get('DSO_API_KEY') || '';
-      apiUrl = `https://api.pdok.nl/lv/bag/ogc/v2/collections/verblijfsobjecten/items?adresseerbaarObjectIdentificatie=${vboId}&f=json&limit=1`;
-      const r = await fetch(apiUrl, { headers: { 'x-api-key': dsoKey } });
-      const d = await r.json();
+      r = await fetch(apiUrl);
+      d = await r.json();
       return new Response(JSON.stringify(d), { headers });
 
+    // ── Perceel: kadastrale oppervlakte via BRK WFS ──
     } else if (actie === 'perceel') {
-      // BRK kadastrale kaart — perceeloppervlak via gemeentecode+sectie+nummer
       const gem = url.searchParams.get('gemeentecode') || '';
       const sec = url.searchParams.get('sectie') || '';
       const nr  = url.searchParams.get('nummer') || '';
-      if (gem && sec && nr) {
-        apiUrl = `https://service.pdok.nl/kadaster/kadastralekaart/wfs/v5_0?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&typeName=kadastralekaart:Perceel&outputFormat=application/json&CQL_FILTER=kadastraleGemeentecode='${gem}'+AND+sectie='${sec}'+AND+perceelnummer=${nr}&count=1`;
-      } else {
-        // Fallback: bbox op coördinaten
-        const x = url.searchParams.get('x') || '';
-        const y = url.searchParams.get('y') || '';
-        const d = 50;
-        apiUrl = `https://service.pdok.nl/kadaster/kadastralekaart/wfs/v5_0?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&typeName=kadastralekaart:Perceel&outputFormat=application/json&srsName=EPSG:28992&bbox=${+x-d},${+y-d},${+x+d},${+y+d},EPSG:28992&count=5`;
-      }
+      const x   = url.searchParams.get('x') || '';
+      const y   = url.searchParams.get('y') || '';
 
-    } else if (actie === 'woz') {
-      const vboId = url.searchParams.get('vboId') || '';
-      const dsoKey = Deno.env.get('DSO_API_KEY') || '';
-      apiUrl = `https://api.pdok.nl/lv/woz/ogc/v1/collections/wozobjecten/items?adresseerbaarobjectidentificatie=${vboId}&f=json&limit=1`;
-      const r = await fetch(apiUrl, { headers: { 'x-api-key': dsoKey } });
-      const d = await r.json();
+      if (gem && sec && nr) {
+        // Methode A: via kadastrale aanduiding (meest nauwkeurig)
+        apiUrl = `https://service.pdok.nl/kadaster/kadastralekaart/wfs/v5_0?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&typeName=kadastralekaart:Perceel&outputFormat=application/json&CQL_FILTER=kadastraleGemeentecode='${gem}'+AND+sectie='${sec}'+AND+perceelnummer=${nr}&count=1`;
+      } else if (x && y) {
+        // Methode B: bbox op RD-coördinaten
+        const d2 = 50;
+        apiUrl = `https://service.pdok.nl/kadaster/kadastralekaart/wfs/v5_0?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&typeName=kadastralekaart:Perceel&outputFormat=application/json&srsName=EPSG:28992&bbox=${+x-d2},${+y-d2},${+x+d2},${+y+d2},EPSG:28992&count=5`;
+      } else {
+        return new Response(JSON.stringify({ error: 'Geef gemeentecode+sectie+nummer of x+y mee' }), { status: 400, headers });
+      }
+      r = await fetch(apiUrl);
+      d = await r.json();
       return new Response(JSON.stringify(d), { headers });
 
-    } else {
-      return new Response(JSON.stringify({ error: 'Onbekende actie' }), { status: 400, headers });
-    }
+    // ── WOZ: vastgestelde waarde ──
+    } else if (actie === 'woz') {
+      const vboId = url.searchParams.get('vboId') || '';
+      // Officieel PDOK WOZ endpoint
+      apiUrl = `https://api.pdok.nl/lv/woz/wozobjecten/v1/wozobject?adresseerbaarobjectidentificatie=${vboId}`;
+      r = await fetch(apiUrl, { headers: { 'Accept': 'application/json' } });
+      if (!r.ok) {
+        return new Response(JSON.stringify({ vastgesteldeWaarde: null }), { headers });
+      }
+      d = await r.json();
+      const woz = d?._embedded?.wozobjecten?.[0]?.vastgesteldeWaarde ?? null;
+      return new Response(JSON.stringify({ vastgesteldeWaarde: woz }), { headers });
 
-    const resp = await fetch(apiUrl);
-    const data = await resp.json();
-    return new Response(JSON.stringify(data), { headers });
+    } else {
+      return new Response(JSON.stringify({ error: 'Onbekende actie: ' + actie }), { status: 400, headers });
+    }
 
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
