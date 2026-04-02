@@ -411,7 +411,7 @@ async function run(doc) {
     try {
       const r = await fetch(`/api/pdok?actie=woz&vboId=${vboId}`);
       const d = await r.json();
-      woz = d?.features?.[0]?.properties?.vastgesteldeWaarde ?? null;
+      woz = d?.vastgesteldeWaarde ?? null;
     } catch(e){}
   }
   log(woz!=null?'✓':'?', woz!=null?'ok':'sp',
@@ -578,7 +578,7 @@ Antwoord ALLEEN als JSON zonder markdown:
 {"optoppen":"…","aanbouwen":"…","splitsen":"…"}`;
 
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages',{
+    const r = await fetch('/api/ai',{
       method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,
         messages:[{role:'user',content:prompt}]})
