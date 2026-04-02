@@ -12,3 +12,7 @@
 [[edge_functions]]
   path = "/api/rp"
   function = "rp"
+
+[[edge_functions]]
+  path = "/api/ai"
+  function = "ai"
