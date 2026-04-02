@@ -1,6 +1,6 @@
-// Netlify Edge Function: rp.js
+// netlify/edge-functions/rp.js
 // Haalt bestemmingsplan + maximale bouwhoogte op via Ruimtelijkeplannen API v4
-// Vereist RP_API_KEY als Netlify environment variable
+// Vereist RP_API_KEY als Netlify/lokale environment variable
 // Aanroepen: /api/rp?x=90650.9&y=435909
 
 export default async function handler(req) {
@@ -15,41 +15,49 @@ export default async function handler(req) {
   };
 
   if (!x || !y) {
-    return new Response(JSON.stringify({ error: 'x en y zijn verplicht (RD coördinaten)' }), { status: 400, headers });
+    return new Response(JSON.stringify({ error: 'x en y zijn verplicht' }), { status: 400, headers });
   }
   if (!key) {
-    return new Response(JSON.stringify({ error: 'RP_API_KEY niet ingesteld in Netlify' }), { status: 500, headers });
+    return new Response(JSON.stringify({ error: 'RP_API_KEY niet ingesteld' }), { status: 500, headers });
   }
 
   const base = 'https://ruimte.omgevingswet.overheid.nl/ruimtelijke-plannen/api/opvragen/v4';
   const rpHeaders = {
-    'Content-Type':  'application/json',
-    'Content-Crs':   'epsg:28992',
-    'Accept':        'application/hal+json',
-    'x-api-key':     key,
+    'Content-Type': 'application/json',
+    'Content-Crs':  'epsg:28992',
+    'Accept':       'application/hal+json',
+    'x-api-key':    key,
   };
   const geo = { _geo: { intersectAndNotTouches: { type: 'Point', coordinates: [x, y] } } };
 
   try {
-    // Stap 1: bestemmingsplan zoeken op punt
+    // Stap 1: vind het geldende bestemmingsplan op dit punt
     const r1 = await fetch(
       `${base}/plannen/_zoek?planType=bestemmingsplan&regelStatus=geldend&_count=3`,
       { method: 'POST', headers: rpHeaders, body: JSON.stringify(geo) }
     );
+
     if (!r1.ok) {
-      return new Response(JSON.stringify({ error: `Plannen API: ${r1.status}` }), { status: r1.status, headers });
+      return new Response(JSON.stringify({
+        planNaam: null, bpFunctie: null, maxBouwhoogte: null,
+        error: `Plannen API: ${r1.status}`
+      }), { headers });
     }
+
     const d1 = await r1.json();
     const plannen = d1?._embedded?.plannen ?? [];
+
     if (plannen.length === 0) {
-      return new Response(JSON.stringify({ planNaam: null, bpFunctie: null, maxBouwhoogte: null }), { headers });
+      return new Response(JSON.stringify({
+        planNaam: null, bpFunctie: null, maxBouwhoogte: null
+      }), { headers });
     }
 
-    const plan   = plannen[0];
-    const planId = plan.id;
+    const plan    = plannen[0];
+    const planId  = plan.id;
     const planNaam = plan.naam ?? null;
 
-    // Stap 2: bestemmingsfunctie ophalen
+    // Stap 2: bestemmingsfunctie ophalen (wonen, gemengd, etc.)
     let bpFunctie = null;
     const r2 = await fetch(
       `${base}/plannen/${planId}/enkelbestemmingen/_zoek?_count=3`,
@@ -64,17 +72,21 @@ export default async function handler(req) {
     }
 
     // Stap 3: alle maatvoeringen van het plan in één call
+    // Dit is de snelste route: één call geeft alle hoogtematen terug
     let maxBouwhoogte = null;
     const r3 = await fetch(
       `${base}/plannen/${planId}/maatvoeringen?bestemmingsplangebied=${planId}&_count=200`,
       { headers: { 'Accept': 'application/hal+json', 'x-api-key': key } }
     );
+
     if (r3.ok) {
       const d3 = await r3.json();
       for (const m of d3?._embedded?.maatvoeringen ?? []) {
         const nm = (m.naam ?? m.symboolcode ?? '').toLowerCase();
+        // Zoek op bouwhoogte, goothoogte, nokhoogte
         if (nm.includes('bouwhoogte') || nm.includes('goothoogte') ||
-            nm.includes('nokhoogte')  || nm.includes('maximale hoogte')) {
+            nm.includes('nokhoogte')  || nm.includes('maximale hoogte') ||
+            nm.includes('max. hoogte')) {
           const v = m.waarde ?? m.maximaleWaarde ?? null;
           if (v !== null && (maxBouwhoogte === null || +v > maxBouwhoogte)) {
             maxBouwhoogte = +v;
@@ -83,10 +95,16 @@ export default async function handler(req) {
       }
     }
 
-    return new Response(JSON.stringify({ planNaam, bpFunctie, maxBouwhoogte }), { headers });
+    return new Response(JSON.stringify({
+      planNaam,
+      bpFunctie,
+      maxBouwhoogte,
+    }), { headers });
 
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
+    return new Response(JSON.stringify({
+      planNaam: null, bpFunctie: null, maxBouwhoogte: null, error: e.message
+    }), { status: 500, headers });
   }
 }
 
